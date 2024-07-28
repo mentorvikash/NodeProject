@@ -10,7 +10,7 @@ type UserType = {
 let users: UserType[] = [{ id: 1, fname: "vikas", lname: "singh", age: 25 }];
 
 let getAllUser = async (req: Request, res: Response) => {
-  res.status(200).json(users);
+  res.status(200).json({ success: true, data: users });
 };
 
 let getSingleUser = async (req: Request, res: Response) => {

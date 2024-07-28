@@ -7,7 +7,7 @@
     "test": "jest"
   },
   "jest": {
-    "preset": "ts-node",
+    "preset": "ts-jest",
     "testEnvironment": "node"
   },
   "keywords": [],
@@ -31,4 +31,4 @@
   "devDependencies": {
     "ts-node-dev": "^2.0.0"
   }
-}
+}    
