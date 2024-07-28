@@ -40,8 +40,8 @@ app.post("/user/", (req: Request, res: Response) => {
   const body: usersType = req.body;
   if (body) {
     const updatedObj = { ...body };
-    updatedObj.id = Math.floor(Math.random()*10000) ;        
-    
+    updatedObj.id = Math.floor(Math.random() * 10000);
+
     users.push(updatedObj);
     return res.status(200).json({ success: true, data: body });
   }
@@ -51,34 +51,52 @@ app.post("/user/", (req: Request, res: Response) => {
 });
 
 // Edit user
-// app.patch("/user/:id", (req: Request, res: Response) => {
-//     const { id } = req.params;
-//     const body = req.body;
-//     if (id && body) {
-//       const data = users.filter((user) => user.id === Number(id));
-//       return res.status(200).json(users);
-//     }
-//     return res.status(404).json({ message: "user not found" });
-// });
+app.patch("/user/:id", (req: Request, res: Response) => {
+  const { id } = req.params;
+  const userID = Number(id);
+  if (!isNaN(userID) && req.body) {
+    const userIndex = users.findIndex((user) => user.id == userID);
+    if (userIndex !== -1) {
+      const { fname, lname, age } = req.body;
+      if (fname && typeof fname === "string") {
+        users[userIndex].fname = fname;
+      }
+
+      if (lname && typeof lname === "string") {
+        users[userIndex].lname = lname;
+      }
+
+      if (age && typeof age === "number") {
+        users[userIndex].age = age;
+      }
+
+      return res
+        .status(200)
+        .json({ success: true, message: "User successfully updated" });
+    }
+  }
+
+  return res.status(404).json({ message: "user not found" });
+});
 
 // Delete user
 app.delete("/user/:id", (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = Number(id);
-  
-    if (!isNaN(userId)) {
-      const userIndex = users.findIndex((user) => user.id === userId);
-  
-      if (userIndex !== -1) {
-        users.splice(userIndex, 1);
-        return res
-          .status(200)
-          .json({ success: true, message: "User successfully deleted" });
-      }
+  const { id } = req.params;
+  const userId = Number(id);
+
+  if (!isNaN(userId)) {
+    const userIndex = users.findIndex((user) => user.id === userId);
+
+    if (userIndex !== -1) {
+      users.splice(userIndex, 1);
+      return res
+        .status(200)
+        .json({ success: true, message: "User successfully deleted" });
     }
-  
-    return res.status(404).json({ success: false, message: "User not found" });
-  });
+  }
+
+  return res.status(404).json({ success: false, message: "User not found" });
+});
 
 // app.delete("/user/:id", (req: Request, res: Response) => {
 //   const { id } = req.params;
