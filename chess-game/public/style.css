@@ -1,0 +1,28 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: auto;
+}
+#head {
+  text-align: center;
+  background-color: black;
+  color: white;
+  padding: 0.5rem 0;
+  margin-top: 0.5rem;
+}
+
+.footer {
+  position: absolute;
+  width: 100%;
+  padding: 1rem;
+  bottom: 0;
+  color: yellow;
+  background-color: black;
+  text-align: center;
+}
