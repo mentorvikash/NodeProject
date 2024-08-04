@@ -20,8 +20,12 @@ const renderBoard = () => {
             if (colData) {
                 const pieceElement = document.createElement('div')
                 pieceElement.classList.add("piece", colData.color == 'w' ? "white" : "black")
-                pieceElement.innerHTML = ""
+                pieceElement.innerHTML = getPieceUnicode(colData)
                 pieceElement.draggable = playerRole === colData.color;
+
+                // pieceElement.addEventListener('click', () => {
+                //     alert("i got clicked")
+                // })
 
                 pieceElement.addEventListener('dragstart', (e) => {
                     if (pieceElement.draggable) {
@@ -43,8 +47,9 @@ const renderBoard = () => {
                 e.preventDefault();
             })
 
-            squarebox.addEventListener("dragend", (e) => {
+            squarebox.addEventListener("drop", (e) => {
                 e.preventDefault();
+
                 if (draggedPiece) {
                     const targetSource = {
                         row: parseInt(squarebox.dataset.row),
@@ -56,11 +61,64 @@ const renderBoard = () => {
             chessBoard.appendChild(squarebox)
         })
     })
-    console.log(board)
+
+    if (playerRole == 'b') {
+        chessBoard.classList.add("flipped")
+    } else {
+        chessBoard.classList.remove("flipped")
+
+    }
 }
 
+
+const handelMove = (source, target) => {
+    console.log({ source, target })
+    const move = {
+        from: `${String.fromCharCode(97 + source.col)}${8 - source.row}`,
+        to: `${String.fromCharCode(97 + target.col)}${8 - target.row}`,
+        promotion: 'q'
+    }
+    socket.emit('move', move)
+}
+
+function getPieceUnicode(piece) {
+    const unicodePieces = {
+        'p': '♙',
+        'r': '♖',
+        'n': '♘',
+        'b': '♗',
+        "k": '♔',
+        "q": "♕",
+        'P': '♟',
+        'R': '♜',
+        'N': '♞',
+        'B': '♝',
+        'Q': '♛',
+        'K': '♚'
+    }
+    return unicodePieces[piece.type] || ""
+}
+
+socket.on('player-role', (role) => {
+    console.log({ role })
+    playerRole = role;
+    renderBoard()
+})
+
+socket.on('spaculator', () => {
+    playerRole = null;
+    renderBoard()
+})
+
+socket.on('boardState', (playerMove) => {
+    console.log({ playerMove })
+    chess.load(playerMove)
+    renderBoard();
+})
+
+socket.on('move', (playerMove) => {
+    chess.move(playerMove)
+    renderBoard();
+})
+
 renderBoard()
-
-const handelMove = () => { }
-
-const getPieceUnicode = () => { }
