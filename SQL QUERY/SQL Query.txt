@@ -1,0 +1,1052 @@
+### select database
+
+USE sql_store;
+
+### Order of the query matter;
+
+```
+SELECT 1, 2
+-- FROM customers
+-- WHERE customer_id =1
+-- ORDER BY first_name
+```
+
+### Select all coulumns
+SELECT * FROM customers
+
+### Seleect specific colums
+SELECT first_name, last_name, point + 10 AS 'discount_factor'
+FROM customers
+
+### Select only unique values
+SELECT DISTINCT state
+FROM customers
+
+ 
+SELECT
+name
+unit_price
+(unit_price * 1.1) AS new_price
+FROM products
+
+### comparision operator in SQL
+
+-- >
+-- <
+-- >=
+-- <=
+-- =
+-- !=
+-- <>
+
+- here != and <> give you the same result
+
+SELECT *
+FROM Customers
+WHERE birthdate > '1990-01-01'
+
+### AND and OR operator
+
+USE sql_store;
+
+SELECT *
+FROM Customers
+WHERE birth_date > '1990-01-02' OR 
+(points > 1000 AND state = 'CA')
+
+
+-- NOT QUERY
+
+USE sql_store;
+
+SELECT *
+FROM Customers
+WHERE NOT (birth_date > '1990-01-02' OR 
+(points > 1000 AND state = 'CA'))
+
+
+### Select order_items table, get the items for order 6, where the total price is grater then 30
+
+
+USE sql_store;
+SELECT *
+FROM order_items
+WHERE order_id = 6 AND unit_price*quantity >30
+
+
+
+### IN operator
+USE sql_store;
+SELECT *
+FROM Customers
+-- WHERE state = 'VA' OR state = 'GA' OR state = 'FL'
+-- WHERE state IN ('VA', 'GA', 'FL')
+ WHERE state NOT IN ('VA', 'GA', 'FL')
+
+
+### find all products where quantity in stocks any of them 49, 38, 72.
+
+USE sql_store;
+SELECT *
+FROM Products
+WHERE quantity_in_stock IN (49, 38, 72)
+
+## In a range
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE points BETWEEN 1000 AND 3000
+
+
+### 2nd query
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE birth_date BETWEEN '1990-1-1' AND '2000-1-1'
+
+## LIKE OPERATOR
+USE sql_store;
+SELECT *
+FROM Customers
+-- whose last name start with Nas 
+WHERE last_name LIKE 'Nas%'
+
+-- whose have any number of char before and after b.
+-- WHERE last_name LIKE '%b%'
+
+-- whose last name end with y.
+-- WHERE last_name LIKE '%y'
+
+-- whose last name followed by y.
+-- WHERE last_name LIKE '%____y'
+-- WHERE last_name LIKE 'a___y'
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE address LIKE '%TRAIL%' OR address LIKE '%AVENUE%'
+
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE phone LIKE '%9'
+
+## Regular experession query
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE last_name REGEXP '^Br|mac|filed$'
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE last_name REGEXP '^Br|mac|filed$'
+
+-- ^ begin
+-- $ end
+-- | logical or
+-- [abcd] => any of a,b,c,d
+-- [a-f]
+
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE first_name REGEXP 'elka|ambur'
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE last_name REGEXP 'ey$|on$'
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE last_name REGEXP 'b[ru]'
+
+USE sql_store;
+SELECT *
+FROM Customers
+WHERE last_name REGEXP '^my|se'
+
+## Null operator
+
+SELECT *
+FROM Customers
+WHERE phone IS NULL
+
+SELECT *
+FROM Customers
+WHERE phone IS NOT NULL
+
+SELECT *
+FROM Orders
+WHERE shipped_date IS NULL
+
+## Ordered by Query
+
+SELECT *, quantity * Unit_price AS total_price
+FROM order_items
+WHERE order_id = 2
+ORDER BY total_price DESC
+
+## Limit records query
+
+SELECT *
+FROM Customers
+ORDER BY points DESC
+LIMIT 3
+
+-- for pagination skip first 6 record and then get next 3 data
+
+SELECT *
+FROM Customers
+ORDER BY points DESC
+LIMIT 6, 3
+
+## Inner join query
+
+SELECT order_id, O.customer_id, first_name, last_name
+FROM Orders O
+INNER JOIN Customers C ON  C.customer_id = O.customer_id
+
+
+SELECT order_id, I.product_id, name, quantity, I.unit_price
+FROM Order_items I
+INNER JOIN Products P ON I.product_id = P.product_id
+ORDER BY quantity DESC
+
+
+## Use Join when work with different database
+
+SELECT *
+FROM order_items oi
+INNER JOIN sql_inventory.products P ON P.product_id = oi.product_id
+
+USE sql_hr;
+SELECT order_id, oi.product_id, name
+FROM sql_store.order_items oi
+INNER JOIN sql_inventory.products P ON P.product_id = oi.product_id
+
+
+## SELF JOIN QUERY
+USE sql_hr;
+
+SELECT e.employee_id, e.first_name, m.first_name as Manager
+FROM Employees e
+JOIN Employees m ON e.reports_to = m.employee_id
+
+
+## Attach multiple database or table
+
+USE sql_store;
+
+SELECT
+o.order_id,
+c.first_name,
+c.last_name,
+os.name AS status
+FROM Orders o
+JOIN Customers c ON o.customer_id = c.customer_id
+JOIN Order_statuses os ON  o.status = os.order_status_id
+
+
+
+USE sql_invoicing;
+SELECT 
+P.payment_id,
+P.client_id,
+P.invoice_id,
+P.date,
+P.amount,
+C.first_name,
+C.last_name,
+PM.name AS payment_mode
+FROM payments P
+JOIN sql_store.customers C ON  C.customer_id = P.client_id
+JOIN sql_invoicing.payment_methods PM ON PM.payment_method_id = P.payment_method
+
+
+## Compound Join Condition
+
+SELECT *
+FROM Order_items oi
+JOIN order_item_notes oin
+ ON  oi.order_id = oin.order_id
+ AND oi.product_id = oin.product_id 
+
+
+## Implicite Join Syntex
+
+-- explicite join syntax (recommended)
+SELECT * 
+FROM orders o
+JOIN customers p ON o.customer_id = p.customer_id
+
+-- Implicite Join same do same as what done above
+SELECT *
+FROM orders o, customers c
+WHERE o.customer_id = c.customer_id
+
+-- if forget to use the where, then intead of giving 10 result it will give 100. each order create join with each item of customers
+
+SELECT *
+FROM orders o, customers c
+
+
+## OUTER JOIN
+
+-- Left Join
+
+SELECT 
+order_id,
+order_date,
+s.name AS shipper_name
+FROM Orders o
+LEFT JOIN Shippers s ON o.shipper_id = s.shipper_id
+
+
+-- Right Join
+
+SELECT *
+FROM Shippers s  
+RIGHT JOIN Orders o ON o.shipper_id = s.shipper_id
+WHERE s.shipper_id IS NULL
+
+
+SELECT 
+p.product_id,
+p.name,
+oi.quantity
+FROM Products p
+LEFT JOIN order_items oi ON p.product_id = oi.order_id
+ORDER BY p.name
+
+## OUTER JOIN FROM MULTIPLE TABLES
+
+SELECT 
+c.customer_id,
+c.first_name,
+o.order_id,
+o.shipper_id,
+s.name AS shipper_name
+FROM Customers c
+LEFT JOIN Orders o ON c.customer_id = o.customer_id
+LEFT JOIN Shippers s ON o.shipper_id = s.shipper_id
+
+
+SELECT 
+o.order_date,
+o.order_id,
+c.first_name,
+o.order_date,
+s.name AS shipper_name,
+os.name AS status
+FROM Orders o
+JOIN Customers c ON o.customer_id = c.customer_id
+LEFT JOIN Shippers s ON o.shipper_id = s.shipper_id
+JOIN order_statuses os ON o.status = os.order_status_id
+
+## SELF OUTER JOIN
+
+USE sql_hr;
+
+SELECT 
+e.employee_id,
+e.first_name,
+m.first_name AS manager
+FROM employees e
+LEFT JOIN employees m ON e.reports_to = m.employee_id
+-- WHERE e.reports_to IS NULL
+
+
+## USING Quotes
+
+
+SELECT
+o.order_id,
+c.first_name,
+s.name as shipper_name
+FROM orders o
+JOIN customers c
+USING (customer_id)
+LEFT JOIN shippers s
+USING (shipper_id)
+
+-- join with multiple columns
+
+SELECT *
+FROM order_items oi
+JOIN order_item_notes oin ON oi.product_id = oin.product_id
+	AND oi.order_id = oin.order_Id
+
+-- same query by using USING clause
+
+SELECT *
+FROM order_items oi
+JOIN order_item_notes
+	USING (order_id, product_id)
+
+
+SELECT *
+FROM order_items oi
+JOIN order_item_notes
+	USING (order_id, product_id)
+
+
+-- Natural joints
+
+SELECT *
+FROM orders
+NATURAL JOIN customers
+
+## Cross joints (joint each element of order to each item of customer)
+
+-- explicite syntex
+
+SELECT 
+o.order_id,
+c.first_name
+FROM orders o
+CROSS JOIN customers c
+
+-- implicite syntex
+
+SELECT 
+o.order_id,
+c.first_name
+FROM orders o, customers c
+
+-- implicite syntax
+
+SELECT 
+s.name AS shipper_name ,
+p.name AS product_name
+FROM shippers s, products p
+
+
+-- explicite syntax (recommended)
+
+SELECT 
+s.name AS shipper_name ,
+p.name AS product_name
+FROM shippers s
+CROSS JOIN products p
+
+
+## UNION Joint (number of column return from different query should be same)
+
+
+SELECT 
+o.order_id,
+'ACTIVE' as status
+FROM orders o
+WHERE o.order_date >= 1995-01-01
+UNION
+SELECT
+o.order_id,
+'INACTIVE' as status
+FROM orders o
+WHERE o.order_date < '2019-01-01'
+
+-- next query do not make any sense but still you can do that.
+
+SELECT 
+first_name
+FROM customers
+UNION
+SELECT
+comments 
+FROM orders
+
+-- create a prize section based on point upto 2000 bronze, upto 3000 silver, more 
+gold
+
+SELECT
+customer_id,
+first_name,
+points,
+'BRONZE' as type
+FROM customers
+WHERE points <2000
+UNION
+SELECT
+customer_id,
+first_name,
+points,
+'SILVER' as type
+FROM customers
+WHERE points >2000 AND points <= 3000
+UNION
+SELECT
+customer_id,
+first_name,
+points,
+'GOLD' as type
+FROM customers
+WHERE points >3000
+ORDER BY points DESC
+
+
+## Create data
+
+INSERT INTO customers(
+first_name,
+last_name,
+address, 
+city,
+state
+)
+VALUES(
+'vikash',
+'singh',
+'hatt wali',
+'tekanpur',
+'GW'
+)
+
+## Create multiple data in one go
+
+INSERT INTO shippers(name)
+VALUES('shipper1'),
+	('shipper2'),
+    ('shipper3')
+
+
+INSERT INTO products(
+name,
+quantity_in_stock,
+unit_price
+)
+VALUES('Banana', 24, 5.2),
+	('apple', 15, 3.4),
+    ('papaya', 26, 7.0)
+
+
+## Inserting Hierarchical Rows
+
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-1-1', 1 );
+INSERT INTO order_items
+VALUES(LAST_INSERT_ID(), 1, 3, 2.5 ),
+(LAST_INSERT_ID(), 2, 2, 5.5 ),
+(LAST_INSERT_ID(), 3, 3, 4.5 )
+
+
+## COPY DATA FROM ONE TABLE TO ANOTHER
+
+CREATE TABLE archive_order AS
+SELECT * FROM orders
+
+-- copy only selected data to new table
+
+INSERT INTO archive_order
+SELECT * 
+FROM orders
+WHERE order_date > '2019-01-01'
+
+
+
+CREATE TABLE invoice_arcive AS
+SELECT
+i.invoice_id,
+i.number,
+c.name AS client_name,
+i.invoice_total,
+i.invoice_date,
+i.due_date,
+i.payment_date
+FROM invoices i
+JOIN clients c
+	USING(client_id)
+WHERE payment_date IS NOT NULL
+
+
+
+## UPDATE THE EXISTING RECORD
+
+UPDATE invoices
+SET payment_total = 34.5, payment_date = '2023-02-25'
+WHERE invoice_id = 1
+
+
+-- back to default
+
+UPDATE invoices
+SET payment_total = default, payment_date = null
+WHERE invoice_id = 1
+
+-- updated existing record
+
+UPDATE invoices
+SET payment_total = invoice_total * 0.5, 
+	payment_date = due_date
+WHERE invoice_id = 3
+
+
+-- updated multiple records
+
+UPDATE invoices
+SET payment_total = invoice_total * 0.5, 
+	payment_date = due_date
+WHERE invoice_id IN (3,4) 
+
+-- if willing to update all records, just remove where section
+
+-- updated customers, born before 1990, 50+ points
+
+UPDATE customers
+SET points = points + 50
+WHERE birth_date < '1990-01-01' 
+
+
+-- Update multiple customers with different id
+
+UPDATE customers
+SET points = points + 50
+WHERE customer_id IN (2,4)
+
+
+-- if not know about current customer id
+
+UPDATE customers
+SET points = points + 50
+WHERE customer_id IN
+		(SELECT 
+		DISTINCT customer_id 
+		FROM orders
+		WHERE shipper_id IS NULL)
+
+-- Deleting Data
+
+-- delete by customer id
+
+DELETE FROM invoices
+WHERE client_id = (
+	SELECT
+    client_id
+	FROM clients
+	WHERE name = "Topiclounge"
+)
+
+
+-- to restore the database select the select file >> Open SQL script >> select script
+
+-- Aggregate Function
+
+SELECT 
+MAX(invoice_total) AS highest,
+MIN(invoice_total) AS lowest,
+AVG(invoice_total) AS average,
+SUM(invoice_total) AS total,
+SUM(invoice_total *1.1) AS modified_total,
+COUNT(payment_date) AS payment_done_count,
+COUNT(*) AS count
+FROM invoices
+
+-- GROUP BY
+
+-- gruping data
+
+SELECT
+client_id,
+SUM(invoice_total) AS total
+FROM invoices
+GROUP BY client_id
+ORDER BY total DESC
+
+
+SELECT
+    city,
+    state,
+    SUM(invoice_total) AS total
+FROM invoices
+JOIN clients USING (client_id)
+GROUP BY city, state
+ORDER BY total DESC
+
+-- group by payment_method and date give the total sales
+
+SELECT
+date,
+SUM(amount) as total_sale,
+pm.name as payment_method
+FROM payments p
+JOIN payment_methods pm ON p.payment_method = pm.payment_method_id
+GROUP BY date, payment_method
+ORDER BY date
+
+-- Put condition after grouping with HAVING clause
+
+SELECT
+client_id,
+SUM(amount) as total_sale,
+COUNT(*) AS no_of_invoice
+FROM payments
+GROUP BY client_id
+HAVING total_sale >= 75
+
+
+-- Return only those customer who have spend a total of $100
+
+SELECT 
+customer_id,
+first_name,
+state,
+SUM(oi.unit_price * oi.quantity) AS total_price
+FROM customers c
+JOIN orders o USING (customer_id)
+JOIN order_items oi USING(order_id)
+WHERE state = 'VA'
+GROUP BY 
+customer_id,
+first_name
+HAVING total_price > 100
+
+
+-- WITH ROLLUP operator (it sum the value of all group data and also all sub groups)
+
+SELECT 
+client_id,
+SUM(amount)
+FROM payments
+GROUP BY client_id WITH ROLLUP
+
+
+
+SELECT 
+state,
+city,
+SUM(amount)
+FROM payments
+JOIN clients using(client_id)
+GROUP BY state, city WITH ROLLUP
+
+
+
+SELECT 
+pm.name as payment_mode,
+SUM(amount) as total_payment
+FROM payments p
+JOIN payment_methods pm ON p.payment_method = pm.payment_method_id
+GROUP BY payment_mode WITH ROLLUP
+
+
+-- COMPLEX QUERY IN SQL
+
+-- Find all product is more expensive then id = 3 (lettuce)
+
+SELECT *
+FROM products p
+WHERE unit_price > (
+		SELECT
+		unit_price
+		FROM products
+		WHERE product_id = 3)
+
+
+-- list of all employee whose getting salary more then average
+
+SELECT *
+FROM employees
+WHERE salary > (
+SELECT 
+AVG(salary) as avg_salary
+FROM employees
+)
+
+-- IN OPERATOR
+
+-- Get the product who never been ordered
+
+SELECT *
+FROM Products
+WHERE product_id NOT IN (
+	SELECT 
+	DISTINCT product_id
+	FROM order_items
+)
+
+
+-- Give all clients who have no invoices
+
+SELECT *
+FROM clients
+WHERE client_id NOT IN (
+	SELECT
+	DISTINCT client_id
+	FROM invoices
+)
+
+-- by using join
+
+SELECT *
+FROM clients
+LEFT JOIN invoices USING (client_id)
+WHERE invoice_id IS NULL
+
+
+-- ALL OPERATER
+
+-- get all invoice with have more invoice total of all invoice generated by client_id = 3
+
+SELECT *
+FROM invoices
+WHERE invoice_total > ALL (
+	SELECT 
+    invoice_total
+    FROM invoices
+    WHERE client_id = 3
+)
+
+-- with aggregate MAX function
+
+SELECT *
+FROM invoices
+WHERE invoice_total > (
+	SELECT 
+    Max(invoice_total)
+    FROM invoices
+    WHERE client_id = 3
+)
+
+
+
+-- ANY Operator
+
+-- Select clients which having at least 2 invoices
+
+SELECT *
+FROM clients
+Where client_id IN (
+	SELECT 
+	client_id
+	FROM invoices
+	GROUP BY client_id
+	HAVING COUNT(*) >= 2
+)
+
+
+SELECT *
+FROM clients
+Where client_id = ANY(
+	SELECT 
+	client_id
+	FROM invoices
+	GROUP BY client_id
+	HAVING COUNT(*) >= 2
+)
+
+
+-- Return employees who get more then average salary
+
+SELECT  *
+FROM employees
+WHERE salary > (
+	SELECT
+	AVG(salary) AS avg_salary
+	FROM employees
+)
+
+SELECT  *
+FROM employees e
+WHERE salary > (
+	SELECT AVG(salary)
+	FROM employees
+    WHERE office_id = e.office_id
+)
+
+-- Grouping Criterion: The subquery calculates the average based on this grouping. (query related sub query)
+
+SELECT *
+FROM invoices i
+WHERE invoice_total > (
+	SELECT 
+    AVG(invoice_total)
+    FROM invoices
+    WHERE client_id = i.client_id
+)
+
+
+-- Select clients that have an invoice | EXIST OPERATOR
+
+SELECT 
+DISTINCT client_id,
+name,
+address,
+city,
+state
+From clients
+JOIN invoices USING(client_id) 
+
+
+SELECT *
+From clients
+WHERE client_id IN (
+	SELECT 
+    DISTINCT client_id
+    FROM invoices
+)
+
+
+
+-- find the product that have never been ordered
+
+SELECT *
+FROM products p
+WHERE NOT EXISTS (
+	SELECT 
+    product_id
+    FROM order_items
+    WHERE product_id = p.product_id
+)
+
+
+SELECT *
+FROM products p
+WHERE product_id NOT IN (
+    SELECT 
+    product_id
+    FROM order_items
+)
+
+
+-- Generate a report of invoice_id, invoice_total, invoice_avg and difference (SUBQUERY IN SELECT CLAUSE)
+
+SELECT 
+invoice_id,
+invoice_total,
+(SELECT 
+	AVG(invoice_total)
+	FROM invoices
+) as invoice_avg,
+invoice_total - (SELECT invoice_avg) as difference
+FROM invoices
+
+
+Select 
+client_id,
+name,
+(
+	SELECT AVG(invoice_total) 
+	FROM invoices
+) AS average,
+(
+	SELECT SUM(invoice_total) 
+	FROM invoices
+    WHERE c.client_id = client_id
+) AS total_sales,
+(SELECT total_sales - average) AS difference
+FROM clients c
+
+
+-- We can also use newly generated table as new data source for makeing further query as
+
+SELECT *
+FROM (
+	SELECT
+	client_id,
+	name,
+	(
+		SELECT 
+		AVG(invoice_total) 
+		FROM invoices
+	) AS average,
+	(
+		SELECT 
+		SUM(invoice_total) 
+		FROM invoices
+		WHERE client_id = c.client_id
+	) as total_sales,
+	(SELECT total_sales - average) as difference
+	FROM clients c
+) as sales_summery
+WHERE total_sales IS NOT NULL
+
+
+-- ESSENCIAL MYSQL FUNCTION
+
+-- 1. NUMERIC FUNCTIONS
+
+SELECT ROUND(5.25); -- round number
+SELECT FLOOR(6.52); -- floor number
+SELECT CEILING(6.52); -- next number of equal
+SELECT ROUND(RAND() * 1000, 2); -- upto 2 digit
+SELECT TRUNCATE(52.36525);  -- Round upto 2 digit
+SELECT ABS(-5.2625) -- Always give positive absolute value
+
+ 
+-- 2. STRING FUNCTIONS
+
+SELECT LENGTH("vikash");
+SELECT UPPER("vikash");
+SELECT LOWER("viKash");
+SELECT LTRIM("   vikash");
+SELECT RTRIM("vikash   ");
+SELECT TRIM("   vikash   ");
+SELECT SUBSTRING("kindergarden", 3, 4);
+SELECT LEFT("kindergarden", 4);
+SELECT RIGHT("kindergarden", 5);
+SELECT CONCAT("vikash", " ", "singh");
+SELECT LOCATE("kindergarden", "g");
+SELECT REPLACE("kindergarden", "garden", "garten");
+
+
+-- 3. Date Function
+
+SELECT NOW(), CURDATE(), CURTIME() 
+SELECT YEAR(NOW()), MONTH(NOW()), DAY(NOW());
+SELECT DAYNAME(NOW()), MONTHNAME(NOW()), HOUR(NOW()), MINUTE(NOW()), SECOND(NOW()) 
+SELECT EXTRACT( DAY FROM NOW())
+SELECT EXTRACT( MONTH FROM NOW())
+SELECT EXTRACT( HOUR FROM NOW())
+
+
+-- 4. FORMAT DATE
+SELECT DATE_FORMAT(NOW(), '%Y %M %D');
+SELECT DATE_FORMAT(NOW(), '%y - %m - %d');
+SELECT time_format(NOW(), '%h:%i:%s %p')
+
+
+-- 5. Calculating date and time
+SELECT DATE_ADD(NOW(), INTERVAL 1 DAY);
+SELECT DATE_ADD(NOW(), INTERVAL 1 HOUR);
+SELECT DATE_ADD(NOW(), INTERVAL -1 YEAR);
+SELECT DATE_SUB(NOW(), INTERVAL 1 YEAR);
+SELECT TIME_TO_SEC('09:02') - TIME_TO_SEC('09:00');
+SELECT DATEDIFF(NOW(), "1992-10-04")
+
+
+
+-- 6. The IFNULL and COALESCE Functions
+
+
+SELECT 
+order_id,
+IFNULL(shipper_id, "Not Exist") as shipper
+FROM orders
+
+-- check if shipper_id, if not check comments, if not then "Not Exist"
+
+SELECT 
+order_id,
+COALESCE(shipper_id, comments, "Not Exist") as shipper
+FROM orders
+
+
+SELECT 
+first_name,
+IFNULL(phone, "Unknown") as phone_number
+FROM customers
+ 
+
+
+
+
+
+
+
