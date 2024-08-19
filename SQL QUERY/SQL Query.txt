@@ -22,7 +22,9 @@ FROM customers
 SELECT DISTINCT state
 FROM customers
 
- 
+
+### How to assign allies name 
+
 SELECT
 name
 unit_price
@@ -71,7 +73,7 @@ WHERE NOT (birth_date > '1990-01-02' OR
 USE sql_store;
 SELECT *
 FROM order_items
-WHERE order_id = 6 AND unit_price*quantity >30
+WHERE order_id = 6 AND unit_price*quantity > 30
 
 
 
@@ -277,13 +279,13 @@ SELECT *
 FROM Order_items oi
 JOIN order_item_notes oin
  ON  oi.order_id = oin.order_id
- AND oi.product_id = oin.product_id 
+ AND oi.product_id = oin.product_id
 
 
 ## Implicite Join Syntex
 
 -- explicite join syntax (recommended)
-SELECT * 
+SELECT *
 FROM orders o
 JOIN customers p ON o.customer_id = p.customer_id
 
@@ -313,7 +315,7 @@ LEFT JOIN Shippers s ON o.shipper_id = s.shipper_id
 -- Right Join
 
 SELECT *
-FROM Shippers s  
+FROM Shippers s
 RIGHT JOIN Orders o ON o.shipper_id = s.shipper_id
 WHERE s.shipper_id IS NULL
 
@@ -568,20 +570,17 @@ WHERE payment_date IS NOT NULL
 
 
 ## UPDATE THE EXISTING RECORD
-
 UPDATE invoices
 SET payment_total = 34.5, payment_date = '2023-02-25'
 WHERE invoice_id = 1
 
 
 -- back to default
-
 UPDATE invoices
 SET payment_total = default, payment_date = null
 WHERE invoice_id = 1
 
 -- updated existing record
-
 UPDATE invoices
 SET payment_total = invoice_total * 0.5, 
 	payment_date = due_date
@@ -589,7 +588,6 @@ WHERE invoice_id = 3
 
 
 -- updated multiple records
-
 UPDATE invoices
 SET payment_total = invoice_total * 0.5, 
 	payment_date = due_date
@@ -598,21 +596,18 @@ WHERE invoice_id IN (3,4)
 -- if willing to update all records, just remove where section
 
 -- updated customers, born before 1990, 50+ points
-
 UPDATE customers
 SET points = points + 50
 WHERE birth_date < '1990-01-01' 
 
 
 -- Update multiple customers with different id
-
 UPDATE customers
 SET points = points + 50
 WHERE customer_id IN (2,4)
 
 
 -- if not know about current customer id
-
 UPDATE customers
 SET points = points + 50
 WHERE customer_id IN
@@ -624,7 +619,6 @@ WHERE customer_id IN
 -- Deleting Data
 
 -- delete by customer id
-
 DELETE FROM invoices
 WHERE client_id = (
 	SELECT
@@ -637,7 +631,6 @@ WHERE client_id = (
 -- to restore the database select the select file >> Open SQL script >> select script
 
 -- Aggregate Function
-
 SELECT 
 MAX(invoice_total) AS highest,
 MIN(invoice_total) AS lowest,
@@ -670,7 +663,6 @@ GROUP BY city, state
 ORDER BY total DESC
 
 -- group by payment_method and date give the total sales
-
 SELECT
 date,
 SUM(amount) as total_sale,
@@ -815,7 +807,6 @@ WHERE invoice_total > (
 )
 
 
-
 -- ANY Operator
 
 -- Select clients which having at least 2 invoices
@@ -891,7 +882,6 @@ WHERE client_id IN (
     DISTINCT client_id
     FROM invoices
 )
-
 
 
 -- find the product that have never been ordered
@@ -1044,9 +1034,105 @@ IFNULL(phone, "Unknown") as phone_number
 FROM customers
  
 
+-- Create a table having columns
+-- product_id
+-- product_name
+-- orders (no of times each product ordered)
+-- frequency (orders > 1 ? 'many times' : 'once' )
+
+SELECT 
+product_id,
+name,
+COUNT(*) as orders,
+IF(COUNT(*) =  1, 'Once', 'Many Times') as frequency
+FROM products p
+JOIN order_items USING(product_id)
+GROUP BY product_id
 
 
+-- Set status based on order date.
+
+SELECT
+order_id,
+order_date,
+IF( YEAR(order_date) = YEAR(NOW()), 'Active', 'Archived' ) as status
+FROM orders
+
+-- Set category by using switch statement CASE WHEN THEN END
+
+SELECT
+order_id,
+CASE
+	WHEN YEAR(order_date) = 2018 THEN 'Active'
+    WHEN YEAR(order_date) = 2018 - 1 THEN 'Last Year'
+    WHEN YEAR(order_date) < 2018 - 1 THEN 'Archived'
+    ELSE 'Future'
+END as category
+FROM orders
+
+-- Set Gold, Silver and Bronze based on points you a customer have:
+
+SELECT
+CONCAT(first_name, ' ', last_name) as customer_name,
+points,
+CASE
+	WHEN points > 3000 THEN 'Gold'
+    WHEN points >= 2000 AND points <= 3000 THEN 'Silver'
+    ELSE 'Bronze'
+END as category
+FROM customers
+ORDER BY points DESC
 
 
+-- How to create VIEWS in database
+
+CREATE VIEW invoice_filter_data AS
+SELECT 
+c.client_id,
+c.name,
+SUM(payment_total) AS total_sales
+FROM clients c
+JOIN invoices USING(client_id)
+GROUP BY client_id, name
 
 
+-- Utilizing the created view to make further process, it will as table but, it is not a table
+
+SELECT 
+MAX(total_sales) as maximum_sale,
+MIN(total_sales) as minimum_sale
+FROM invoice_filter_data
+
+
+-- Create an view to get client balance
+
+CREATE VIEW client_balance_remain AS
+SELECT 
+c.client_id,
+c.name,
+SUM(invoice_total - payment_total) AS client_balance
+FROM clients c
+JOIN invoices USING(client_id)
+GROUP BY client_id, name
+
+
+-- to delete a view 
+
+DROP VIEW name_of_view
+
+-- example: delete if exist
+DROP VIEW client_balance_remain
+
+-- Update a view by using CREATE OR REPLACE VIEW view_name
+
+
+CREATE OR REPLACE VIEW client_balance_remain AS
+SELECT 
+c.client_id,
+c.name,
+SUM(invoice_total - payment_total) AS client_balance
+FROM clients c
+JOIN invoices USING(client_id)
+GROUP BY client_id, name
+HAVING client_balance > 500
+ORDER BY client_balance DESC
