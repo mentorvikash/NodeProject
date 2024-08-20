@@ -1136,3 +1136,323 @@ JOIN invoices USING(client_id)
 GROUP BY client_id, name
 HAVING client_balance > 500
 ORDER BY client_balance DESC
+
+
+-- Create an UPDATABLE VIEW (edit and delete) the other views same as table if it meet following condition, it should not contain all these.
+-- DISTINT
+-- AGGRIGATE FUNCTION (MIN, MAX, SUM, COUNT)
+-- GROUP BY, HAVING
+-- UNION
+
+
+CREATE VIEW invoice_with_balance AS
+SELECT 
+invoice_id,
+number,
+client_id,
+invoice_total,
+payment_total,
+invoice_total - payment_total AS balance,
+invoice_date,
+due_date,
+payment_date
+FROM invoices
+WHERE invoice_total - payment_total > 0
+
+
+-- Now we can perform delete operation
+
+DELETE
+FROM invoice_with_balance
+WHERE invoice_id = 1
+
+-- Now we can perform update information
+
+UPDATE invoice_with_balance
+SET due_date = DATE_ADD(due_date, interval 2 DAY)
+WHERE invoice_id = 3
+
+
+-- but if we execute this query, where we try to update  payment_total equal to  invoice_total leads to balance = 0, then in such case that particulate row get removed from existing view
+
+UPDATE invoice_with_balance
+SET payment_total = invoice_total
+WHERE invoice_id = 3
+
+
+-- to prevent this behaviour, we have to use WITH CHECK OPTION
+
+CREATE OR REPLACE VIEW invoice_with_balance AS
+SELECT 
+invoice_id,
+number,
+client_id,
+invoice_total,
+payment_total,
+invoice_total - payment_total AS balance,
+invoice_date,
+due_date,
+payment_date
+FROM invoices
+WHERE invoice_total - payment_total > 0
+WITH CHECK OPTION
+
+-- Now if we try to update the view, which leads to delete the row, we may encounter some error
+
+UPDATE invoice_with_balance
+SET payment_total = invoice_total
+WHERE invoice_id = 3
+
+-- this will lead to an error Check Option Failed
+
+-- Other benefits of views
+-- Views provide an abstraction over our database table
+-- Reduce the impact of changes
+-- Restrict access to database
+-- Data Security
+-- But don't apply them blindly on any situation, first we need to plan, do we really required a view or not at first place
+
+## Stored procedures
+-- take you sql code separate form your app code.
+-- remove access for all, limit our access to different user, for different tables
+
+
+DELIMITER $$
+CREATE PROCEDURE get_clients()
+BEGIN
+	SELECT * FROM invoices;
+END$$
+
+DELIMITER ;
+
+-- We can call this procedure by using call
+
+CALL sql_invoicing.get_clients();
+
+-- Create another procedure
+
+DELIMITER $$
+CREATE PROCEDURE get_invoices_with_balance()
+BEGIN
+	SELECT * 
+    FROM invoice_with_balance
+    WHERE balance > 0;
+END$$
+
+DELIMITER ;
+
+-- drop procedures
+
+DROP PROCEDURE IF EXISTS get_payments
+
+
+-- drop and create new procedure
+
+DROP PROCEDURE IF EXISTS get_payments;
+
+DELIMITER $$
+CREATE PROCEDURE get_payments()
+BEGIN
+	SELECT * 
+    FROM payments;
+END $$
+
+DELIMITER ;
+
+
+-- Create a procedure to get client by state
+
+DROP PROCEDURE IF EXISTS get_clients_by_state;
+
+DELIMITER $$
+CREATE PROCEDURE get_clients_by_state
+(
+	state CHAR(2)
+)
+BEGIN
+	SELECT * 
+    FROM clients c
+    WHERE c.state = state;
+END $$
+
+DELIMITER ;
+
+
+-- Set the default state value if not exist anything
+
+
+DROP PROCEDURE IF EXISTS get_clients_by_state;
+
+DELIMITER $$
+CREATE PROCEDURE get_clients_by_state
+(
+	state CHAR(2)
+)
+BEGIN
+    IF state IS NULL THEN
+    	SET state = 'CA';
+    END IF;
+
+    SELECT * 
+    FROM clients c
+    WHERE c.state = state;
+END $$
+
+DELIMITER ;
+
+-- create procedure to get invoice by ClientID
+
+DROP PROCEDURE IF EXISTS get_invoices_by_client;
+
+DELIMITER $$
+CREATE PROCEDURE get_invoices_by_client
+(
+	client_id INT
+)
+BEGIN
+	SELECT * 
+    FROM invoices i
+    WHERE i.client_id = client_id;
+END $$
+DELIMITER ;
+
+
+-- Set the default value state value is null
+
+DROP PROCEDURE IF EXISTS get_clients_by_state;
+
+DELIMITER $$
+CREATE PROCEDURE get_clients_by_state
+(
+	state CHAR(2)
+)
+BEGIN
+	IF state IS NULL THEN
+		SET state = 'CA';
+    END IF;
+	SELECT * 
+    FROM clients c
+    WHERE c.state = state;
+END $$
+
+DELIMITER ;
+
+
+call sql_invoicing.get_clients_by_state(NULL);
+
+
+-- If want to send conditional return based on if null or not
+
+DROP PROCEDURE IF EXISTS get_clients_by_state;
+
+DELIMITER $$
+CREATE PROCEDURE get_clients_by_state
+(
+	state CHAR(2)
+)
+BEGIN
+	IF state IS NULL THEN
+		SELECT * FROM clients;
+	ELSE
+		SELECT * 
+		FROM clients c
+		WHERE c.state = state;
+    END IF;
+END $$
+
+DELIMITER ;
+
+
+-- The shorthand for the same query above
+
+DROP PROCEDURE IF EXISTS get_clients_by_state;
+
+DELIMITER $$
+CREATE PROCEDURE get_clients_by_state
+(
+	state CHAR(2)
+)
+BEGIN
+		SELECT * 
+		FROM clients c
+		WHERE IFNULL( state, c.state);  -- if null c.state = c.state
+END $$
+
+DELIMITER ;
+
+
+-- Filter payments bases on two input parameters
+
+
+DROP PROCEDURE IF EXISTS get_payments_by_id;
+
+DELIMITER $$
+CREATE PROCEDURE get_payments_by_id
+(
+client_id INT,
+payment_method_id TINYINT
+)
+BEGIN
+	SELECT * 
+    FROM payments p
+    WHERE 
+		p.client_id = IFNULL(client_id, p.client_id) AND
+        P.payment_method = IFNULL(payment_method_id, p.payment_method);
+END; $$
+
+DELIMITER $$
+
+
+
+-- Add validation to procedures
+
+DROP PROCEDURE IF EXISTS get_payments_by_id;
+
+DELIMITER $$
+CREATE PROCEDURE get_payments_by_id
+(
+client_id INT,
+payment_method_id TINYINT
+)
+BEGIN
+	IF payment_method_id > 4 THEN
+		SIGNAL SQLSTATE '22003'
+			SET MESSAGE_TEXT = "given id exceed the range";
+	END IF;
+    
+	SELECT * 
+    FROM payments p
+    WHERE 
+		p.client_id = IFNULL(client_id, p.client_id) AND
+        P.payment_method = IFNULL(payment_method_id, p.payment_method);
+END; $$
+
+DELIMITER $$
+
+
+---- Create OUT bound parameter
+
+DROP PROCEDURE IF EXISTS get_unpaid_invoices_for_client;
+
+DELIMITER $$
+CREATE PROCEDURE get_unpaid_invoices_for_client
+(
+	client_id INT,
+    OUT invoices_count INT,
+    OUT invoices_total DECIMAL(9,2)
+)
+BEGIN
+	SELECT 
+    COUNT(*), SUM(invoice_total)
+    INTO invoices_count, invoices_total
+    FROM invoices i
+    WHERE i.client_id = client_id AND payment_total = 0;
+END; $$
+
+DELIMITER ;
+
+
+
+
+-- Create procedure to update payment
+
