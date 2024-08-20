@@ -1454,5 +1454,577 @@ DELIMITER ;
 
 
 
--- Create procedure to update payment
+-- Create a procedure to get risk factor
+
+DELIMITER $$
+CREATE PROCEDURE get_risk_factor()
+BEGIN
+	DECLARE risk_factor DECIMAL(9,2) DEFAULT 0;
+        DECLARE invoices_count INT;
+	DECLARE invoices_total DECIMAL(9,2);
+    
+	SELECT 
+    COUNT(*), SUM(invoice_total)
+    INTO invoices_count, invoices_total
+    FROM invoices;
+    
+    SET risk_factor = invoices_total/invoices_count * 5;
+    
+    SELECT risk_factor;
+END; $$
+
+
+
+-- Function can only return a single value
+
+-- DETERMINISTIC -- Return same value for same input
+-- READS SQL DATA -- we have select to get the data, if update and delete, this should also be selected
+-- MODIFIES SQL DATA - means we going to insert, update or delete some data
+
+
+-- create a custom function to calculate the risk factor for specific client targeted by client_id
+
+DELIMITER $$
+
+CREATE FUNCTION get_risk_factor_for_client
+(
+	client_id INT
+)
+RETURNS INTEGER
+READS SQL DATA 
+BEGIN
+	DECLARE risk_factor DECIMAL(9,2) DEFAULT 0;
+	DECLARE invoices_count INT;
+	DECLARE invoices_total DECIMAL(9,2);
+    
+	SELECT 
+    COUNT(*), SUM(invoice_total)
+    INTO invoices_count, invoices_total
+    FROM invoices i
+    WHERE i.client_id  = client_id;
+    
+    SET risk_factor = invoices_total/invoices_count * 5;
+    
+    RETURN IFNULL(risk_factor, 0);
+END $$
+
+DELIMITER ; 
+
+
+-- utilizing the function to calculate risk_factor
+
+SELECT
+client_id,
+get_risk_factor_for_client(client_id) as risk_factor
+FROM clients
+
+-- TRIGGER  naming convention  nameOfTheTable_afterOrBefore_typeOfActionAsInsertOrCreateOrDelete 
+-- a set code that we want to execute every time before or after an event occour
+
+
+DROP TRIGGER IF EXISTS payment_after_insert;
+
+DELIMITER $$
+CREATE TRIGGER payment_after_insert
+	AFTER INSERT ON payments
+    FOR EACH ROW 
+BEGIN 
+	UPDATE invoices
+    SET payment_total = payment_total + NEW.amount
+    WHERE invoice_id = NEW.invoice_id;
+END; $$
+
+DELIMITER ;
+
+-- Insert new payment
+
+INSERT INTO payments
+VALUES (DEFAULT, 3, 4, '2023-05-12', 20, 1)
+
+
+-- Create a trigger which trigger after delete
+
+DROP TRIGGER IF EXISTS payment_after_delete
+
+DELIMITER $$
+
+CREATE TRIGGER payment_after_delete
+	AFTER DELETE ON payments
+		FOR EACH ROW
+BEGIN
+ UPDATE invoices
+	SET payment_total = payment_total - OLD.amount
+	WHERE invoice_id = OLD.invoice_id;
+END; $$
+
+DELIMITER ;
+
+-- Delete a payment to check if trigger works or not?
+
+DELETE
+FROM payments
+WHERE payment_id = 12
+
+-- use SHOW TRIGGER to get all trigger list
+-- for more specific search SHOW TRIGGERS LIKE 'payments%'
+
+
+-- How to use TRIGGER for logging user interaction with database
+
+-- Step 1 create new table to track action on payment table
+
+CREATE TABLE payments_audit
+(
+	client_id	INT 	NOT NULL,
+    date	DATETIME	NOT NULL,
+    amount	DECIMAL(9,2)	NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    action_date DATE NOT NULL
+)
+
+-- update our existing triggers
+
+-- modify talble column type
+
+ALTER TABLE payments_audit
+MODIFY COLUMN date DATE NOT NULL,
+MODIFY COLUMN action_date DATETIME NOT NULL;
+
+
+
+-- update trigger for insert
+
+
+DROP TRIGGER IF EXISTS payment_after_insert;
+
+DELIMITER $$
+CREATE TRIGGER payment_after_insert
+	AFTER INSERT ON payments
+    FOR EACH ROW 
+BEGIN 
+	UPDATE invoices
+    SET payment_total = payment_total + NEW.amount
+    WHERE invoice_id = NEW.invoice_id;
+    
+    INSERT INTO payments_audit
+    VALUES (NEW.client_id, NEW.date, NEW.amount, 'Insert', NOW());
+END; $$
+
+DELIMITER ;
+
+
+-- update trigger for delete
+
+DROP TRIGGER IF EXISTS payment_after_delete;
+
+DELIMITER $$
+
+CREATE TRIGGER payment_after_delete
+	AFTER DELETE ON payments
+		FOR EACH ROW
+BEGIN
+ UPDATE invoices
+	SET payment_total = payment_total - OLD.amount
+	WHERE invoice_id = OLD.invoice_id;
+    
+    INSERT INTO payments_audit
+    VALUES (OLD.client_id, OLD.date, OLD.amount, 'Delete', NOW());
+
+END; $$
+
+DELIMITER ;
+
+
+-- now trigger insert and delete query to see changes
+
+INSERT INTO payments
+VALUES (DEFAULT, 3, 4, '2023-05-12', 20, 1);
+
+DELETE
+FROM payments
+WHERE payment_id = 13;
+
+
+--- Use this is set global variable event_schedular true of falase
+
+SHOW VARIABLES LIKE 'event%';
+SET GLOBAL event_scheduler = ON
+
+
+-- Next create an event, to delete the audit data at interval of 1 year
+
+DELIMITER $$
+
+CREATE EVENT yearly_delete_stale_audit_data
+ON SCHEDULE
+	-- AT '2024-05-01'
+	EVERY 1 YEAR STARTS '2023-01-01' ENDS '2029-01-01'
+DO BEGIN
+    DELETE FROM payments_audit
+    WHERE action_date < NOW() - INTERVAL 1 YEAR;
+    -- DATESUB(NOW(), INTERVAL 1 YEAR)
+END; $$ 
+DELIMITER $$
+
+
+-- OTHER EVENT Query
+
+SHOW EVENTS LIKE 'year%';
+DROP EVENT IF EXISTS yearly_delete_stale_audit_data;
+ALTER EVENT yearly_delete_stale_audit_data DISABLE;
+ALTER EVENT yearly_delete_stale_audit_data ENABLE;
+
+
+-- update the current event
+
+DELIMITER $$
+ALTER EVENT yearly_delete_stale_audit_data
+ON SCHEDULE
+	-- AT '2024-05-01'
+	EVERY 1 YEAR STARTS '2023-01-01' ENDS '2034-01-01'
+DO BEGIN
+    DELETE FROM payments_audit
+    WHERE action_date < NOW() - INTERVAL 1 YEAR;
+    -- DATESUB(NOW(), INTERVAL 1 YEAR)
+END; $$ 
+DELIMITER $$
+
+
+-- ACID Properties -  Atomicity, consistency, isolation, durability
+-- Each transaction is single piece of work, no matter how many step it involves. if one break all break and rollback
+-- Our database remain in consistant state, if place order, their must be item.
+-- If both party try to modify the same data, will be work in isolated environment. one wait other to complete
+-- IF commited, chages are permanent, and you are not going to loose the changes, it is secure.
+
+
+-- Create a Transaction
+
+START TRANSACTION;
+
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1,1,1);
+
+COMMIT;
+
+
+-- By default whenever we make any query like create update or delete in our code, it will create an transition and execute the query.
+
+-- Concurrency - When two customer try to access or modify the data at same time.
+-- Lost data -> if 2 user try to update the same data at a time, one update points and other state, chances are once data will override other data
+-- Dirty Reads -> if at present movement one start a transation to update some data, and mean while other reads the same data, it will give other user two different data, which is not ideal. may be because of in mean time customer 1 lelt the data, or disconnected or powerfalier, the other will get the data which is not still commited
+-- Non-repeating-reads - Read something twice and get different result. because some is updating the data in mean time of when your process is going on.
+-- Phantom-reads - let one query foe customer have more the 300 points, but in mean time at someone updating this list, but not get into the list of these customer list for special discount.
+
+READ UNCOMMITED
+READ COMMITTED - DIRTY READS
+REPETALBE READ - LOST UPDATE, DIRTY READ, NON-REPEATING-READS
+SERIALIZABLE - LOST UPDATE, DIRTY READ, NON-REPEATING-READS, PHANTOM READS
+
+
+-- READ UNCOMMITED
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1,1,1);
+
+COMMIT;
+
+
+-- READ UCOMMITTED
+
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1,1,1);
+COMMIT;
+
+
+-- REPETALBE READ
+
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1,1,1);
+ROLLBACK;
+
+
+-- SERIALIZABLE
+
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO orders(customer_id, order_date, status)
+VALUES(1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1,1,1);
+ROLLBACK;
+
+
+-- By default when we create simple transaction, it will use REPETALBE READ.
+
+-- Deadlock (both transaction waiting for each other to compilation of transaction, that lead to non of transaction complete)
+-- If deadlock happen we have to check our code and optimize the query, so it will not product this situation
+
+Date type - DATE, TIME, TIMESTAMP, DATETIME, YEAR, 
+Blog type - TINYBLOG - 225b, BLOB - 65KB, MEDIUMBLOG - 16MB, LONGBLOB - 4GB
+
+-- JSON TYPE - JSON
+
+
+UPDATE products
+SET properties = '
+{
+	"dimention": [1,2,3,4,],
+    "weight": 10,
+    "manufacturer": {"name": "sony"}
+}
+'
+WHERE product_id = 1;
+
+
+
+UPDATE products
+SET properties = JSON_OBJECT(
+'Weight', 10,
+'dimensions', JSON_ARRAY(1,2,3,4,5),
+'manufacturer', JSON_OBJECT('name', 'sony')
+)
+WHERE product_id = 1;
+
+
+
+SELECT product_id, JSON_EXTRACT(properties, '$.weight')
+FROM products
+WHERE product_id = 1
+
+
+SELECT product_id, properties -> '$.dimentions[0]' 
+FROM products
+WHERE product_id = 1
+
+
+SELECT product_id, properties -> '$.manufacturer.name' 
+FROM products
+WHERE product_id = 1
+
+-- will return "sony", if I want to remove the "" around it and only get sony, then we have to use the following
+
+SELECT product_id, properties ->> '$.manufacturer.name' 
+FROM products
+WHERE product_id = 1
+
+
+-- how to update json object or add new field to it.
+
+UPDATE products
+SET properties = JSON_SET(
+properties, 
+'$.weight', 20,
+'$.age', 10
+)
+WHERE product_id = 1
+
+
+-- Data Modeling 
+-- - Understanding the requirement
+-- - Build a conceptual model
+-- - Build a logical Model
+-- - Build a physical Model
+
+
+
+
+- Conceptual Model >> Logical Model >> Physical Model
+
+
+-- How to create the table
+
+CREATE DATABASE IF NOT EXISTS sql_store2;
+USE sql_store2;
+DROP TABLE IF EXISTS customers;
+CREATE TABLE IF NOT EXISTS customers 
+(
+		customer_id INT PRIMARY KEY AUTO_INCREMENT,
+        first_name VARCHAR(50) NOT NULL,
+        points INT NOT NULL DEFAULT 0,
+        email VARCHAR(255) NOT NULL UNIQUE
+)
+
+
+
+-- MODIFY AN EXISTING TABLE
+
+ALTER TABLE customers
+	ADD last_name VARCHAR(50) NOT NULL AFTER first_name,
+    ADD city VARCHAR(50) NOT NULL,
+    MODIFY COLUMN first_name VARCHAR(55) DEFAULT '',
+    DROP points;
+
+
+-- Create a table of customers and generate it's corresponding orders table and create relation
+
+CREATE DATABASE IF NOT EXISTS sql_store2;
+USE sql_store2;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS customers;
+CREATE TABLE IF NOT EXISTS customers 
+(
+		customer_id INT PRIMARY KEY AUTO_INCREMENT,
+        first_name VARCHAR(50) NOT NULL,
+        points INT NOT NULL DEFAULT 0,
+        email VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS orders
+(
+	order_id INT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    FOREIGN KEY fk_orders_customers (customer_id)
+		REFERENCES customers (customer_id)
+        ON UPDATE CASCADE
+        ON DELETE NO ACTION
+)
+
+
+-- Add or remove primary key and foreign key
+
+ALTER TABLE orders
+	ADD PRIMARY KEY (order_id),
+    DROP PRIMARY KEY,
+    DROP FOREIGN KEY fk_orders_customers,
+    ADD FOREIGN KEY fk_orders_customers (customer_id)
+		REFERENCES customers (customer_id)
+        ON UPDATE CASCADE
+        ON DELETE NO ACTION;
+
+
+-- CREATING INDEX - for faster query
+
+EXPLAIN SELECT customer_id 
+FROM customers
+WHERE state = 'CA';
+
+CREATE INDEX idx_state ON customers (state)
+
+
+
+EXPLAIN SELECT customer_id 
+FROM customers
+WHERE points > 1000;
+
+-- CREATE INDEX idx_points ON customers (points)
+
+SHOW INDEXES FROM customers;
+SHOW INDEXES IN orders;
+ANALYZE TABLE customers;
+
+
+-- indexing string columns
+
+
+CREATE INDEX idx_last_name ON customers (last_name(20));
+
+-- SELECT 
+-- COUNT(DISTINCT LEFT(last_name, 1)),
+-- COUNT(DISTINCT LEFT(last_name, 5)),
+-- COUNT(DISTINCT LEFT(last_name, 10))
+-- FROM customers
+
+-- We can select the optimal no of string, as per our current database length, so that it will help up indexing, and product more result
+
+
+-- FULL TEXT INDEXING
+
+
+-- full text search in normal mode, will capture all post which either have react or redux in title or body
+
+
+CREATE FULLTEXT INDEX idx_title_body ON posts (title, body);
+
+
+SELECT *, MATCH(title, body) AGAINST('react redux') as relevency_score
+FROM posts
+WHERE MATCH(title, body) AGAINST('react redux')
+
+
+-- full text search in Boolean more
+
+CREATE FULLTEXT INDEX idx_title_body ON posts (title, body);
+
+
+SELECT *, MATCH(title, body) AGAINST('react redux') as relevency_score
+FROM posts
+WHERE MATCH(title, body) AGAINST('react -redux +form' IN BOOLEAN MODE)
+
+
+-- full text search with exact phrase match
+
+CREATE FULLTEXT INDEX idx_title_body ON posts (title, body);
+
+SELECT *, MATCH(title, body) AGAINST('react redux') as relevency_score
+FROM posts
+WHERE MATCH(title, body) AGAINST('"handling form"' IN BOOLEAN MODE)
+
+
+-- COMPOSITE INDEX - will help to apply indexing to multiple column, reduce the query time by significant amount
+
+
+-- get the present indexes
+
+USE sql_store;
+SHOW INDEXES IN customers
+
+
+-- This is the normal indexing, no matter how many indexing were done on individual rows only one indexing get utilize for query, so we can still optimise this condition
+
+USE sql_store;
+SHOW INDEXES IN customers;
+
+EXPLAIN SELECT * 
+FROM Customers
+WHERE state = 'CA' AND points > 1000
+
+
+-- by implementing composite indexing, it ideal to choose 4 to 5 column in one composite indexing
+
+
+USE sql_store;
+-- SHOW INDEXES IN customers;
+-- DROP INDEX idx_state ON customers
+
+CREATE INDEX idx_state_point ON customers (state, points);
+EXPLAIN SELECT * 
+FROM Customers
+WHERE state = 'CA' AND points > 1000
+
+
+-- Rules for order of columns in index, 1. Frequently used column first, High cardinality columns first, take your query in account
+
+USE sql_store;
+-- SHOW INDEXES IN customers;
+
+
+-- CREATE INDEX idx_state_point ON customers (state, points);
+-- CREATE INDEX idx_state_lastname ON customers (state, lastname);
+-- CREATE INDEX idx_lastname_state ON customers (lastname, state);
+
+EXPLAIN SELECT * 
+FROM Customers
+USE INDEX (idx_state_lastname)
+WHERE state = 'CA' AND last_name = 'a%'
+
+-- DROP INDEX idx_state_point ON customers
+-- DROP INDEX idx_lastname_state ON customers
+
+-- Here when we inspect the query result idx_state_lastname index will perform better for this case
+
 
